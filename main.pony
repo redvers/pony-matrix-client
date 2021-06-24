@@ -11,14 +11,6 @@ actor Main
 
   new create(env': Env) =>
     env = env'
-    env.out.print("Hello World")
-
-    let doc = JsonDoc
-    let obj = JsonObject
-    obj.data("msgtype") = "m.text"
-    obj.data("body") = "Test message from pony"
-    doc.data = obj
-
     try
       var matrixclient: MatrixClient = MatrixClient(env.root as AmbientAuth, "https://evil.red:8448", token)
       var tis: Main tag = this
