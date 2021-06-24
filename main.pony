@@ -2,12 +2,15 @@ use "http"
 use "net_ssl"
 use "json"
 use "debug"
+use "buffered"
 
 actor Main
+  let env: Env
   let token: String = ""
   let roomid: String = ""
 
-  new create(env: Env) =>
+  new create(env': Env) =>
+    env = env'
     env.out.print("Hello World")
 
     let doc = JsonDoc
@@ -17,30 +20,42 @@ actor Main
     doc.data = obj
 
     try
-      let url: URL = URL.build("https://evil.red:8448/_matrix/client/r0/rooms/" + roomid + "/send/m.room.message?access_token=" + token)?
-      let pc: PostClient = PostClient.create(env.root as AmbientAuth, url, doc.string())?
-    else
-      env.out.print("oof")
+      var matrixclient: MatrixClient = MatrixClient(env.root as AmbientAuth, "https://evil.red:8448", token)
+      matrixclient.whoami()
     end
 
-actor PostClient
-  new create(auth: AmbientAuth, url: URL, doc: String) =>
+  fun gotwhoami() =>
+    env.out.print("In gotwhoami")
+
+
+//    try
+//      let url: URL = URL.build("https://evil.red:8448/_matrix/client/r0/rooms/" + roomid + "/send/m.room.message?access_token=" + token)?
+//      let pc: MatrixClient = MatrixClient.create(env.root as AmbientAuth, url, doc.string())?
+//    else
+//      env.out.print("oof")
+//    end
+
+actor MatrixClient
+  var readerBuffer: Reader ref = Reader
+  let auth: AmbientAuth
+  let homeserver: String
+  let access_token: String
+  let sslctx: SSLContext = recover SSLContext.>set_client_verify(false) end
+  var httpclient: HTTPClient
+
+  new create(auth': AmbientAuth, homeserver': String, access_token': String) =>
+    auth = auth'
+    homeserver = homeserver'
+    access_token = access_token'
+
+    httpclient = HTTPClient.create(auth)
+
+  be whoami() =>
     try
-      let sslctx =
-        recover
-          SSLContext
-            .>set_client_verify(false)
-        end
-
-      let httpclient: HTTPClient = HTTPClient.create(auth)
-      let req: Payload = Payload.request("POST", url)
-      req.add_chunk(doc.string())
-
+      let url: URL = URL.build(homeserver + "/_matrix/client/r0/account/whoami?access_token=" + access_token)?
+      let req: Payload = Payload.request("GET", url)
       let dumpMaker = recover val NotifyFactory.create(this) end
       let sentreq = httpclient(consume req, dumpMaker)?
-
-    else
-      Debug.out("OOff")
     end
 
   be cancelled() =>
@@ -51,33 +66,40 @@ actor PostClient
 		None
 
   be have_response(response: Payload val) =>
+    Debug.out("have_response")
+    if (readerBuffer.size() != 0) then
+      Debug.out("Buffer should be empty right now - What is going on here...")
+      return
+    end
+
     // Print the body if there is any.  This will fail in Chunked or
     // Stream transfer modes.
     try
       let body = response.body()?
       for piece in body.values() do
-        let s: String val =  piece as String
-    		Debug.out("X" + s)
+        readerBuffer.append(piece)
       end
     end
 
   be have_body(data: ByteSeq val) =>
-    try
-      let s: String = data as String
-      Debug.out("Y" + s)
-    end
+    readerBuffer.append(data)
 
   be finished() =>
-    Debug.out("finished")
+    let size: USize = readerBuffer.size()
+    try
+      let block: Array[U8] val = readerBuffer.block(size)?
+      let string: String = String.from_array(block)
+      Debug.out("finished:" + string)
+    end
 
 
 class NotifyFactory is HandlerFactory
   """
   Create instances of our simple Receive Handler.
   """
-  let _main: PostClient
+  let _main: MatrixClient
 
-  new iso create(main': PostClient) =>
+  new iso create(main': MatrixClient) =>
     _main = main'
 
   fun apply(session: HTTPSession): HTTPHandler ref^ =>
@@ -88,10 +110,10 @@ class HttpNotify is HTTPHandler
   Handle the arrival of responses from the HTTP server.  These methods are
   called within the context of the HTTPSession actor.
   """
-  let _main: PostClient
+  let _main: MatrixClient
   let _session: HTTPSession
 
-  new ref create(main': PostClient, session: HTTPSession) =>
+  new ref create(main': MatrixClient, session: HTTPSession) =>
     _main = main'
     _session = session
 
