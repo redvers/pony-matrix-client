@@ -19,6 +19,32 @@ actor MatrixClient
 
     httpclient = HTTPClient.create(auth)
 
+  be rooms_aliases(cb': {(String): None} val, roomid: String) =>
+    Debug.out("be joined_rooms: " + (digestof cb').string())
+    try
+      let url: URL = URL.build(homeserver + "/_matrix/client/r0/rooms/" + roomid + "/aliases?access_token=" + access_token)?
+      let req: Payload = Payload.request("GET", url)
+      let dumpMaker = recover val NotifyFactory.create(cb') end
+      let sentreq = httpclient(consume req, dumpMaker)?
+    end
+
+  be joined_rooms(cb': {(String): None} val) =>
+    Debug.out("be joined_rooms: " + (digestof cb').string())
+    try
+      let url: URL = URL.build(homeserver + "/_matrix/client/r0/joined_rooms?access_token=" + access_token)?
+      let req: Payload = Payload.request("GET", url)
+      let dumpMaker = recover val NotifyFactory.create(cb') end
+      let sentreq = httpclient(consume req, dumpMaker)?
+    end
+
+  be initial_sync(cb': {(String): None} val) =>
+    Debug.out("be initial_sync: " + (digestof cb').string())
+    try
+      let url: URL = URL.build(homeserver + "/_matrix/client/r0/sync?access_token=" + access_token)?
+      let req: Payload = Payload.request("GET", url)
+      let dumpMaker = recover val NotifyFactory.create(cb') end
+      let sentreq = httpclient(consume req, dumpMaker)?
+    end
 
 /* API Call that identifies our Matrix Username for provided token */
   be whoami(cb': {(String): None} val) =>
@@ -89,7 +115,7 @@ class HttpNotify is HTTPHandler
       try
         let block: Array[U8] val = readerBuffer.block(size)?
         let string: String = String.from_array(block)
-        Debug.out("ST: " + string)
+//        Debug.out("ST: " + string)
         _session.dispose()
         Debug.out("HttpNotify.finish: " + (digestof _session).string())
         cb(string)
