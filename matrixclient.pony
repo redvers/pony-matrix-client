@@ -3,9 +3,10 @@ use "net_ssl"
 use "json"
 use "debug"
 use "buffered"
+use "collections"
 
 type CBType is {(DecodeType val, String): None} val
-type DecodeType is (JoinedRooms | WhoAmI)
+type DecodeType is (JoinedRooms | WhoAmI | MSync)
 
 actor MatrixClient
   var readerBuffer: Reader ref = Reader
@@ -21,7 +22,7 @@ actor MatrixClient
 
   be joined_rooms(cb': CBType) =>
     var httpclient: HTTPClient = HTTPClient.create(auth)
-    Debug.out("be joined_rooms: " + (digestof cb').string())
+//    Debug.out("be joined_rooms: " + (digestof cb').string())
     try
       let url: URL = URL.build(homeserver + "/_matrix/client/r0/joined_rooms?access_token=" + access_token)?
       let req: Payload = Payload.request("GET", url)
@@ -30,15 +31,16 @@ actor MatrixClient
       let sentreq = httpclient(consume req, dumpMaker)?
     end
 
-//  be initial_sync(cb': CBType) =>
-//    var httpclient: HTTPClient = HTTPClient.create(auth)
-//    Debug.out("be initial_sync: " + (digestof cb').string())
-//    try
-//      let url: URL = URL.build(homeserver + "/_matrix/client/r0/sync?access_token=" + access_token)?
-//      let req: Payload = Payload.request("GET", url)
-//      let dumpMaker = recover val NotifyFactory.create(cb') end
-//      let sentreq = httpclient(consume req, dumpMaker)?
-//    end
+  be sync(cb': CBType) =>
+    var httpclient: HTTPClient = HTTPClient.create(auth)
+    Debug.out("be initial_sync: " + (digestof cb').string())
+    try
+      let url: URL = URL.build(homeserver + "/_matrix/client/r0/sync?access_token=" + access_token)?
+      let req: Payload = Payload.request("GET", url)
+      let msync: MSync val = MSync.create(cb')
+      let dumpMaker = recover val NotifyFactory.create(msync) end
+      let sentreq = httpclient(consume req, dumpMaker)?
+    end
 
 /* API Call that identifies our Matrix Username for provided token */
   be whoami(cb': CBType) =>
@@ -102,7 +104,7 @@ class HttpNotify is HTTPHandler
     end
 
   fun ref chunk(data: ByteSeq val) =>
-    Debug.out("HttpNotify.chunk: " + (digestof _session).string())
+//    Debug.out("HttpNotify.chunk: " + (digestof _session).string())
     readerBuffer.append(data)
 
   fun ref finished() =>
