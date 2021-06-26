@@ -23,20 +23,10 @@ actor Main
     end
 
 
-  be gotjr(data: Array[U8] val) =>
-    Debug.out("ingotjr")
-    env.out.print("in gotjr")
-    try
-      let iauth: InputSerialisedAuth = InputSerialisedAuth(env.root as AmbientAuth)
-      let dauth: DeserialiseAuth = DeserialiseAuth(env.root as AmbientAuth)
-      let si = Serialised.input(iauth, data)
-      let result: Array[String] = si(dauth)? as Array[String]
-
-      for f in result.values() do
-        env.out.print(f)
-      end
-    else
-      env.out.print("I failed in gotjr")
+  be gotjr(decoder: JoinedRooms val, json: String) =>
+    let d: Array[String] = decoder.apply(json)
+    for f in d.values() do
+      env.out.print(f)
     end
 
   be gotwhoami(data: String) =>

@@ -5,7 +5,7 @@ use "debug"
 use "buffered"
 use "serialise"
 
-type CBType is {(Array[U8] val): None} val
+type CBType is {(DecodeType val, String): None} val
 type DecodeType is (JoinedRooms)
 
 class JoinedRooms
@@ -16,7 +16,10 @@ class JoinedRooms
     auth = auth'
     cb = cb'
 
-  fun apply(json: String) =>
+  fun val callback(json: String) =>
+    cb(this, json)
+
+  fun apply(json: String): Array[String] =>
     var roomarray: Array[String] = Array[String]
     try
       let doc: JsonDoc = JsonDoc
@@ -28,15 +31,8 @@ class JoinedRooms
         | let x: String => roomarray.push(x)
         end
       end
-
-      Debug.out("Pushed array size: " + roomarray.size().string())
-
-      let sauth: SerialiseAuth = SerialiseAuth(auth)
-      let oauth: OutputSerialisedAuth = OutputSerialisedAuth(auth)
-      let rdata: Array[U8] val = Serialised(sauth, roomarray)?.output(oauth)
-
-      cb(rdata)
     end
+    roomarray
 
 
 
@@ -146,8 +142,8 @@ class HttpNotify is HTTPHandler
 //        Debug.out("ST: " + string)
         _session.dispose()
         Debug.out("HttpNotify.finish: " + (digestof _session).string())
-        decoder.apply(string)
-//        cb(string)
+        decoder.callback(string)
+//        cb(decoder)
       end
 
   fun ref cancelled() =>
