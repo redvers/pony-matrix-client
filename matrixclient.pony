@@ -3,39 +3,9 @@ use "net_ssl"
 use "json"
 use "debug"
 use "buffered"
-use "serialise"
 
 type CBType is {(DecodeType val, String): None} val
-type DecodeType is (JoinedRooms)
-
-class JoinedRooms
-  let cb: CBType
-  let auth: AmbientAuth
-
-  new val create(cb': CBType, auth': AmbientAuth) =>
-    auth = auth'
-    cb = cb'
-
-  fun val callback(json: String) =>
-    cb(this, json)
-
-  fun apply(json: String): Array[String] =>
-    var roomarray: Array[String] = Array[String]
-    try
-      let doc: JsonDoc = JsonDoc
-      doc.parse(json)?
-      let ja: Array[JsonType] = ((doc.data as JsonObject).data("joined_rooms")? as JsonArray).data
-
-      for roomname in ja.values() do
-        match roomname
-        | let x: String => roomarray.push(x)
-        end
-      end
-    end
-    roomarray
-
-
-
+type DecodeType is (JoinedRooms | WhoAmI)
 
 actor MatrixClient
   var readerBuffer: Reader ref = Reader
@@ -55,7 +25,7 @@ actor MatrixClient
     try
       let url: URL = URL.build(homeserver + "/_matrix/client/r0/joined_rooms?access_token=" + access_token)?
       let req: Payload = Payload.request("GET", url)
-      let jr: JoinedRooms val = JoinedRooms.create(cb', auth)
+      let jr: JoinedRooms val = JoinedRooms.create(cb')
       let dumpMaker = recover val NotifyFactory.create(jr) end
       let sentreq = httpclient(consume req, dumpMaker)?
     end
@@ -71,15 +41,16 @@ actor MatrixClient
 //    end
 
 /* API Call that identifies our Matrix Username for provided token */
-//  be whoami(cb': CBType) =>
-//    var httpclient: HTTPClient = HTTPClient.create(auth)
-//    Debug.out("be whoami: " + (digestof cb').string())
-//    try
-//      let url: URL = URL.build(homeserver + "/_matrix/client/r0/account/whoami?access_token=" + access_token)?
-//      let req: Payload = Payload.request("GET", url)
-//      let dumpMaker = recover val NotifyFactory.create(cb') end
-//      let sentreq = httpclient(consume req, dumpMaker)?
-//    end
+  be whoami(cb': CBType) =>
+    var httpclient: HTTPClient = HTTPClient.create(auth)
+    Debug.out("be whoami: " + (digestof cb').string())
+    try
+      let url: URL = URL.build(homeserver + "/_matrix/client/r0/account/whoami?access_token=" + access_token)?
+      let req: Payload = Payload.request("GET", url)
+      let wai: WhoAmI val = WhoAmI.create(cb')
+      let dumpMaker = recover val NotifyFactory.create(wai) end
+      let sentreq = httpclient(consume req, dumpMaker)?
+    end
 
 /* Send a message to a room */
 //  be room_send(cb': CBType, roomid: String, message: String) =>
