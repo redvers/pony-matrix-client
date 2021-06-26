@@ -3,6 +3,7 @@ use "net_ssl"
 use "json"
 use "debug"
 use "buffered"
+use "serialise"
 use "collections"
 
 actor Main
@@ -15,12 +16,27 @@ actor Main
     try
       var matrixclient: MatrixClient = MatrixClient(env.root as AmbientAuth, "https://evil.red:8448", token)
       var thistag: Main tag = this
-//      matrixclient.rooms_aliases(tis~gotmisc("rooms_aliases"), "!ysDJRmcvUdudUYnsaf:evil.red")
-//      matrixclient.joined_rooms(tis~gotmisc("joined_rooms"))
-        matrixclient.initial_sync(thistag~gotmisc("gotmisc"))
-//      matrixclient.whoami(tis~gotwhoami())
-//      matrixclient = MatrixClient(env.root as AmbientAuth, "https://evil.red:8448", token)
-//      matrixclient.room_send(tis~gotroom_send(), roomid, "Test message from pony API")
+      matrixclient.joined_rooms(thistag~gotjr())
+//      matrixclient.initial_sync(thistag~gotmisc("gotmisc"))
+//      matrixclient.whoami(thistag~gotwhoami())
+//      matrixclient.room_send(thistag~gotmisc("room_send"), roomid, "Test message from pony API")
+    end
+
+
+  be gotjr(data: Array[U8] val) =>
+    Debug.out("ingotjr")
+    env.out.print("in gotjr")
+    try
+      let iauth: InputSerialisedAuth = InputSerialisedAuth(env.root as AmbientAuth)
+      let dauth: DeserialiseAuth = DeserialiseAuth(env.root as AmbientAuth)
+      let si = Serialised.input(iauth, data)
+      let result: Array[String] = si(dauth)? as Array[String]
+
+      for f in result.values() do
+        env.out.print(f)
+      end
+    else
+      env.out.print("I failed in gotjr")
     end
 
   be gotwhoami(data: String) =>
